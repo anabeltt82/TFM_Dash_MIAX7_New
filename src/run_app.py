@@ -39,6 +39,9 @@ response = s3client.get_object(Bucket='tfmmiax', Key='usuarios_cercanos.pkl')
 body = response['Body'].read()    
 loaded_model = pickle.loads(body)
 
+response = s3client.get_object(Bucket='tfmmiax', Key='autoencoder2.pkl')
+body = response['Body'].read()    
+loaded_model_autoencoder = pickle.loads(body)
 
 
 usuarios = pd.DataFrame(columns=['perfil', 'preferencia_pais', 'preferencia_subcategory','Vola','Beta','calmar_ratio','Tracking_Error','Information_ratio', 'sortino_ratio', 'maxDrawDown_ratio', 'Omega'])
@@ -399,19 +402,16 @@ def update_eleccion(values):
     for row in new_df.itertuples():
         cartera[str(row.id)] = 1
     
+    r_hat = loaded_model_autoencoder.predict(cartera)
+    r_hat = pd.DataFrame(r_hat)
+    r_hat.columns = cartera.columns
+    
     #lo pasamos por nuestro modelo para que nos sugiera cartera
     fondos_new = []
     for column in df:
-        if df[column][0]==1:
+        if r_hat[column]==1:
             fondos_new.append(column)
-        if df[column][1]==1:
-            fondos_new.append(column)
-        if df[column][2]==1:
-            fondos_new.append(column)
-        if df[column][3]==1:
-            fondos_new.append(column)
-    
-    
+        
     for fondo in fondos_new:       
         reg = pd.DataFrame(tablero[tablero['allfunds_id'] == np.double(fondo)])
         df = reg.loc[:,['allfunds_id','name']]      

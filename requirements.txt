@@ -2,3 +2,4 @@ dash
 pandas
 requests
 boto3
+sklearn
