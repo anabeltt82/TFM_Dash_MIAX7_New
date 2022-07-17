@@ -7,11 +7,24 @@ from dash.dependencies import Input, Output, State
 #import plotly.graph_objects as go
 #from sklearn.neighbors import NearestNeighbors
 import numpy as np
-
 import os
-
+import tensorflow as tf
+import tensorflow.keras.backend as K
 import boto3
 import pickle
+
+
+def cMSE(r, r_hat):
+    obs = tf.equal(r,0)
+    clr = tf.math.logical_not(obs)
+    r = tf.boolean_mask(r, clr)
+    r_hat = tf.boolean_mask(r_hat, clr)
+
+    value_diff = r - r_hat
+
+    cMse = K.mean(value_diff * value_diff)
+
+    return cMse
 
 aws_access = os.getenv("aws_access_key_id")   
 aws_secret = os.getenv("aws_secret_access_key")
@@ -39,9 +52,9 @@ response = s3client.get_object(Bucket='tfmmiax', Key='usuarios_cercanos.pkl')
 body = response['Body'].read()    
 loaded_model = pickle.loads(body)
 
-response = s3client.get_object(Bucket='tfmmiax', Key='autoencoder2.pkl')
+response = s3client.get_object(Bucket='tfmmiax', Key='my_h5_saved_model.h5')
 body = response['Body'].read()    
-loaded_model_autoencoder = pickle.loads(body)
+loaded_model_autoencoder = tf.keras.models.load_model(body, custom_objects={'cMSE': cMSE})
 
 
 usuarios = pd.DataFrame(columns=['perfil', 'preferencia_pais', 'preferencia_subcategory','Vola','Beta','calmar_ratio','Tracking_Error','Information_ratio', 'sortino_ratio', 'maxDrawDown_ratio', 'Omega'])
