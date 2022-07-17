@@ -52,9 +52,9 @@ response = s3client.get_object(Bucket='tfmmiax', Key='usuarios_cercanos.pkl')
 body = response['Body'].read()    
 loaded_model = pickle.loads(body)
 
-response = s3client.get_object(Bucket='tfmmiax', Key='my_h5_saved_model.h5')
-body = response['Body'].read()    
-loaded_model_autoencoder = tf.keras.models.load_model(body, custom_objects={'cMSE': cMSE})
+#response = s3client.get_object(Bucket='tfmmiax', Key='my_h5_saved_model.h5')
+#body = response['Body'].read()    
+loaded_model_autoencoder = tf.keras.models.load_model('my_h5_saved_model.h5', custom_objects={'cMSE': cMSE})
 
 
 usuarios = pd.DataFrame(columns=['perfil', 'preferencia_pais', 'preferencia_subcategory','Vola','Beta','calmar_ratio','Tracking_Error','Information_ratio', 'sortino_ratio', 'maxDrawDown_ratio', 'Omega'])
