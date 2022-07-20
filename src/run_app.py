@@ -3,8 +3,8 @@ import dash
 from dash import dcc
 from dash import html
 from dash.dependencies import Input, Output, State
-#import plotly.express as px
-#import plotly.graph_objects as go
+import plotly.express as px
+import plotly.graph_objects as go
 #from sklearn.neighbors import NearestNeighbors
 import numpy as np
 import os
@@ -12,8 +12,34 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 import boto3
 import pickle
+import Markowitz as mk
 
 
+aws_access = os.getenv("aws_access_key_id")   
+aws_secret = os.getenv("aws_secret_access_key")
+
+
+
+#estrategia media movil
+def movaverage_states(vseries, win):
+    sma = vseries.rolling(win).mean()
+    signal_states = (vseries > sma).astype(float)
+    trading_states = signal_states.shift(1)
+    trading_states.iloc[0] = 0
+    return trading_states
+
+def state_return_serie(price, states):
+    """ 
+"""
+    real_serie = price.dropna()
+    ret = real_serie.pct_change()
+    ret.iloc[0] = 0
+    ret_series = ret * states
+    return ret_series
+
+def IntToString(l):
+        return list(map(str, l))
+    
 def cMSE(r, r_hat):
     obs = tf.equal(r,0)
     clr = tf.math.logical_not(obs)
@@ -26,8 +52,8 @@ def cMSE(r, r_hat):
 
     return cMse
 
-aws_access = os.getenv("aws_access_key_id")   
-aws_secret = os.getenv("aws_secret_access_key")
+
+
 
 s3client = boto3.client('s3', 
                         aws_access_key_id = aws_access, 
@@ -38,11 +64,17 @@ response = s3client.get_object(Bucket='tfmmiax', Key='tablero.pkl')
 body = response['Body'].read()
 tablero = pickle.loads(body)
 
-
+response = s3client.get_object(Bucket='tfmmiax', Key='precios.pkl')
+body = response['Body'].read()
+precios = pickle.loads(body)
 
 response = s3client.get_object(Bucket='tfmmiax', Key='tabla_usuarios_fondos.pkl')
 body = response['Body'].read()
 tabla_completa = pickle.loads(body)
+
+response = s3client.get_object(Bucket='tfmmiax', Key='msci.pkl')
+body = response['Body'].read()
+msci = pickle.loads(body)
 
 cartera = tabla_completa.iloc[0,13:]
 cartera[:] = 0
@@ -52,9 +84,8 @@ response = s3client.get_object(Bucket='tfmmiax', Key='usuarios_cercanos.pkl')
 body = response['Body'].read()    
 loaded_model = pickle.loads(body)
 
-#response = s3client.get_object(Bucket='tfmmiax', Key='my_h5_saved_model.h5')
-#body = response['Body'].read()    
-loaded_model_autoencoder = tf.keras.models.load_model('my_h5_saved_model.h5', custom_objects={'cMSE': cMSE})
+
+loaded_model_autoencoder = tf.keras.models.load_model('./models/my_h5_saved_model.h5', custom_objects={'cMSE': cMSE})
 
 
 usuarios = pd.DataFrame(columns=['perfil', 'preferencia_pais', 'preferencia_subcategory','Vola','Beta','calmar_ratio','Tracking_Error','Information_ratio', 'sortino_ratio', 'maxDrawDown_ratio', 'Omega'])
@@ -389,13 +420,25 @@ app.layout = html.Div(children=[
         html.Div(id='dd-output-container'),
         html.Br(),
         html.H4("Cartera propuesta según tus elecciones:"),
-        dcc.Checklist(cartera_elegir.nombre,
-            id="cartera_sugerida") ,
+        dcc.Dropdown(cartera_elegir.nombre.unique(),
+            id="cartera_sugerida",multi=True) ,
         html.Br(),
         html.Button('Calcula pesos', id='cartera', n_clicks=0),
         html.Br(),
+        html.Div(id='result'),
         html.Br(),
         html.Br(),
+        html.Div(children = [
+        dcc.Graph(
+            id='gr_fondos',        
+        ),
+        dcc.Graph(
+            id='gr_rendimiento',        
+        ),
+        dcc.Graph(
+            id='gr_comparativo',        
+        ),
+        ]), #, style={'columnCount': 3}
         html.Br(),
         html.Br(),
         
@@ -405,15 +448,88 @@ app.layout = html.Div(children=[
 ])
 
 @app.callback(
+    Output('gr_comparativo', 'figure'),
+    Output('gr_rendimiento', 'figure'),
+    Output('gr_fondos', 'figure'),
+    #Output('result', 'children'),
+    Input('cartera', 'n_clicks'),
+    Input('fondos_posibles', 'value'),
+    Input('cartera_sugerida', 'value')
+)
+def calcula_cartera(n_clicks, posibles, sugerida):
+    new_df1 = tablero[tablero['name'].isin(posibles)]
+    new_df2 = tablero[tablero['name'].isin(sugerida)]
+    new_df = pd.concat([new_df1, new_df2], ignore_index=True)
+    dades = precios.loc[:,new_df.allfunds_id]
+    rango_fechas = pd.to_datetime(precios['Unnamed: 0'], format='%d/%m/%Y')
+
+    allocations, cartera, retorno_optimo, vola_optima, sharpe_optimo = mk.markowitz(dades.columns, dades, 10000)
+    dades = precios.loc[:,cartera] #nos quedamos solo con los fondos que tienen allocation
+    dades['Date'] = rango_fechas
+    dades.set_index('Date')
+    stock_df=dades
+    stock_df.set_index('Date')
+    
+        
+    nombres = IntToString(stock_df.columns)
+    stock_df.columns = nombres
+    stock_df = stock_df.set_index('Date')
+    
+    msci.set_index('Date')
+    # Indexamos las fechas
+    msci.set_index(rango_fechas, inplace = True) 
+    benchmark = msci['MSCI']
+    
+    
+    stock_states = stock_df.apply(movaverage_states, win=50)
+    
+    sma_returns = [state_return_serie(stock_df[tk], stock_states[tk]) for tk in stock_df.columns]
+    sma_returns_df = pd.concat(sma_returns, axis=1)
+    sma_performance = (sma_returns_df + 1).cumprod()
+    
+    for i in range(sma_performance.shape[1]):
+        columna = sma_performance.columns[i]
+        sma_performance[columna]=sma_performance[columna] / allocations[allocations['tck']==np.double(columna)]['alloc'].values
+        
+    figure1=px.line(sma_performance[sma_performance.columns], title='Fondos')
+    
+                                    
+    #########sma_performance[sma_performance.columns].plot() #plot de los fondos en mismo grafico en funcion de su alloc
+    
+    porfolio_performance = sma_performance.sum(axis=1)
+    figure2=px.line(porfolio_performance, title='Suma de rendimientos')
+    
+    #######porfolio_performance.plot() #grafico de la suma del rendimiento
+    
+    relative_bm = benchmark/benchmark.iloc[0]
+    
+    estrategias = pd.DataFrame({
+        'SMA': porfolio_performance,
+        'MSCI': relative_bm
+    })
+    figure3=px.line(estrategias, title='Comparativo con MSCI')
+    
+    #######estrategias.plot() #plot comparativo benchmark
+    
+      
+    return figure1, figure2, figure3 #'Retorno óptimo:', retorno_optimo, ' Volatilidad óptima: ', vola_optima, ' Ratio Sharpe óptimo: ', sharpe_optimo, figure2
+
+
+@app.callback(
     Output('cartera_sugerida', 'options'),
     Input('fondos_posibles', 'value')
 )
 def update_eleccion(values):
-    new_df = fondos_elegir[fondos_elegir['nombre'].isin(values)]
+    new_df = tablero[tablero['name'].isin(values)]
     #tendriamos ahroa que ver que fondos hay para marcar la columna a la que pertenecen  
+    cartera = tabla_completa.iloc[0,13:]
     cartera[:] = 0
+    
     for row in new_df.itertuples():
-        cartera[str(row.id)] = 1
+        cartera[str(int(row.allfunds_id))] = 1
+
+    cartera = pd.DataFrame(cartera)
+    cartera = cartera.T
     
     r_hat = loaded_model_autoencoder.predict(cartera)
     r_hat = pd.DataFrame(r_hat)
@@ -421,16 +537,17 @@ def update_eleccion(values):
     
     #lo pasamos por nuestro modelo para que nos sugiera cartera
     fondos_new = []
-    for column in df:
-        if r_hat[column]==1:
+    for column in r_hat:
+        if(r_hat[column][0]==1.0):
             fondos_new.append(column)
         
     for fondo in fondos_new:       
         reg = pd.DataFrame(tablero[tablero['allfunds_id'] == np.double(fondo)])
-        df = reg.loc[:,['allfunds_id','name']]      
-        cartera_elegir.loc[len(cartera_elegir.index)] = np.int(df.iloc[0,0]), df.iloc[0,1]
+        df = reg.loc[:,['allfunds_id','name']] 
+        if len(df) > 0:     
+            cartera_elegir.loc[len(cartera_elegir.index)] = int(df.iloc[0,0]), df.iloc[0,1]
     
-    return cartera_elegir.nombre
+    return cartera_elegir.nombre.unique()
 
 
 @app.callback(
@@ -455,7 +572,7 @@ def update_output_button(n_clicks, Omega, MaxDD, Sortino, IR, TE, Calmar, Beta, 
     distancia, indice = loaded_model.kneighbors(usuarios)
 
     df = pd.DataFrame(columns=tabla_completa.columns)
-    for i in range(1, 5):            
+    for i in range(1, 4):            
         df.loc[len(df.index)]=((tabla_completa.iloc[indice[0][i], :]))
     df = df.iloc[:,13:] #nos quedamos solo con los fondos descartamos la informacion del usuario
     fondos = []
@@ -467,14 +584,13 @@ def update_output_button(n_clicks, Omega, MaxDD, Sortino, IR, TE, Calmar, Beta, 
             fondos.append(column)
         if df[column][2]==1:
             fondos.append(column)
-        if df[column][3]==1:
-            fondos.append(column)
+        
     
     
     for fondo in fondos:       
         reg = pd.DataFrame(tablero[tablero['allfunds_id'] == np.double(fondo)])
         df = reg.loc[:,['allfunds_id','name']]      
-        fondos_elegir.loc[len(fondos_elegir.index)] = np.int(df.iloc[0,0]), df.iloc[0,1]
+        fondos_elegir.loc[len(fondos_elegir.index)] = int(df.iloc[0,0]), df.iloc[0,1]
     
     return fondos_elegir.nombre.unique()
 
