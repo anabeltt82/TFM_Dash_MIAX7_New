@@ -12,11 +12,12 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 import boto3
 import pickle
+from google.cloud import storage
 import Markowitz as mk
 
 
-aws_access = os.getenv("aws_access_key_id")   
-aws_secret = os.getenv("aws_secret_access_key")
+#aws_access = os.getenv("aws_access_key_id")   
+#aws_secret = os.getenv("aws_secret_access_key")
 
 
 
@@ -55,46 +56,77 @@ def cMSE(r, r_hat):
 
 
 
-s3client = boto3.client('s3', 
-                        aws_access_key_id = aws_access, 
-                        aws_secret_access_key = aws_secret
-                       )
+#s3client = boto3.client('s3', 
+#                        aws_access_key_id = aws_access, 
+#                        aws_secret_access_key = aws_secret
+#                       )
 
-response = s3client.get_object(Bucket='tfmmiax', Key='tablero.pkl')
-body = response['Body'].read()
-tablero = pickle.loads(body)
+#response = s3client.get_object(Bucket='tfmmiax', Key='tablero.pkl')
+#body = response['Body'].read()
+#tablero = pickle.loads(body)
 
-response = s3client.get_object(Bucket='tfmmiax', Key='precios.pkl')
-body = response['Body'].read()
-precios = pickle.loads(body)
+#response = s3client.get_object(Bucket='tfmmiax', Key='precios.pkl')
+#body = response['Body'].read()
+#precios = pickle.loads(body)
 
-response = s3client.get_object(Bucket='tfmmiax', Key='tabla_usuarios_fondos.pkl')
-body = response['Body'].read()
-tabla_completa = pickle.loads(body)
+#response = s3client.get_object(Bucket='tfmmiax', Key='tabla_usuarios_fondos.pkl')
+#body = response['Body'].read()
+#tabla_completa = pickle.loads(body)
 
-response = s3client.get_object(Bucket='tfmmiax', Key='msci.pkl')
-body = response['Body'].read()
-msci = pickle.loads(body)
-
-cartera = tabla_completa.iloc[0,13:]
-cartera[:] = 0
+#response = s3client.get_object(Bucket='tfmmiax', Key='msci.pkl')
+#body = response['Body'].read()
+#msci = pickle.loads(body)
 
 
-response = s3client.get_object(Bucket='tfmmiax', Key='usuarios_cercanos.pkl')
-body = response['Body'].read()    
-loaded_model = pickle.loads(body)
 
 
-loaded_model_autoencoder = tf.keras.models.load_model('./my_h5_saved_model.h5', custom_objects={'cMSE': cMSE})
+##descargamos desde google storage tablas de datos y modelos de ML y DL
+
+storage_client = storage.Client.from_service_account_json(json_credentials_path='./tfm-roboadvisor-2c0a25f2dd58.json')
+bucket = storage_client.bucket('tfm-miax7')
+
+fichero = 'tabla_usuarios_fondos.pkl'
+blob = bucket.blob(fichero)
+blob.download_to_filename(fichero)
+tabla_completa = pd.read_pickle(fichero)
+
+fichero = 'tablero.pkl'
+blob = bucket.blob(fichero)
+blob.download_to_filename(fichero)
+tablero = pd.read_pickle(fichero)
+
+fichero = 'precios.pkl'
+blob = bucket.blob(fichero)
+blob.download_to_filename(fichero)
+precios = pd.read_pickle(fichero)
+
+fichero = 'msci.pkl'
+blob = bucket.blob(fichero)
+blob.download_to_filename(fichero)
+msci = pd.read_pickle(fichero)
 
 
+fichero = 'usuarios_cercanos.pkl'
+blob = bucket.blob(fichero)
+blob.download_to_filename(fichero)
+loaded_model = pd.read_pickle(fichero)
+
+
+fichero = 'my_h5_saved_model2.h5'
+blob = bucket.blob(fichero)
+blob.download_to_filename(fichero)
+loaded_model_autoencoder = tf.keras.models.load_model(fichero, custom_objects={'cMSE': cMSE})
+
+#inicializamos los dataframes que necesitaremos
 usuarios = pd.DataFrame(columns=['perfil', 'preferencia_pais', 'preferencia_subcategory','Vola','Beta','calmar_ratio','Tracking_Error','Information_ratio', 'sortino_ratio', 'maxDrawDown_ratio', 'Omega'])
 usuarios.loc[len(usuarios.index)] = 0,0,0,0,0,0,0,0,0,0,0
-
+cartera = tabla_completa.iloc[0,13:]
+cartera[:] = 0
 fondos_elegir = pd.DataFrame(columns=['id', 'nombre'])
 cartera_elegir = pd.DataFrame(columns=['id', 'nombre'])
 
 external_stylesheets = ['tema_css.css']
+
 
 def generate_table(dataframe, max_rows=10):
     return html.Table([
@@ -447,7 +479,7 @@ app.layout = html.Div(children=[
         
 ])
 
-@app.callback(
+@app.callback( #al pulsar el boton generar cartera calcula markowitz y calcula el backtesting para pintar graficas
     Output('gr_comparativo', 'figure'),
     Output('gr_rendimiento', 'figure'),
     Output('gr_fondos', 'figure'),
@@ -494,12 +526,12 @@ def calcula_cartera(n_clicks, posibles, sugerida):
     figure1=px.line(sma_performance[sma_performance.columns], title='Fondos')
     
                                     
-    #########sma_performance[sma_performance.columns].plot() #plot de los fondos en mismo grafico en funcion de su alloc
+    #plot de los fondos en mismo grafico en funcion de su alloc
     
     porfolio_performance = sma_performance.sum(axis=1)
     figure2=px.line(porfolio_performance, title='Suma de rendimientos')
     
-    #######porfolio_performance.plot() #grafico de la suma del rendimiento
+    #grafico de la suma del rendimiento
     
     relative_bm = benchmark/benchmark.iloc[0]
     
@@ -509,13 +541,13 @@ def calcula_cartera(n_clicks, posibles, sugerida):
     })
     figure3=px.line(estrategias, title='Comparativo con MSCI')
     
-    #######estrategias.plot() #plot comparativo benchmark
+    #plot comparativo benchmark
     
       
     return figure1, figure2, figure3 #'Retorno óptimo:', retorno_optimo, ' Volatilidad óptima: ', vola_optima, ' Ratio Sharpe óptimo: ', sharpe_optimo, figure2
 
 
-@app.callback(
+@app.callback( #al elegir los fondos con el autoencoder calculamos los fondos para sugerir
     Output('cartera_sugerida', 'options'),
     Input('fondos_posibles', 'value')
 )
@@ -550,7 +582,7 @@ def update_eleccion(values):
     return cartera_elegir.nombre.unique()
 
 
-@app.callback(
+@app.callback( #al pulsar el boton mediante el modelo k-vecinos nos calcula los fondos que podriamos añadir segun similitud
     Output('fondos_posibles', 'options'),
     Input('enviar', 'n_clicks'),
     State('Omega', 'value'),
@@ -596,7 +628,7 @@ def update_output_button(n_clicks, Omega, MaxDD, Sortino, IR, TE, Calmar, Beta, 
 
 
 
-@app.callback(
+@app.callback( #con la información dada generamos un dataframe con el perfil de inversor
     Output('mensajes', 'children'),
     Input('Omega', 'value'),
     Input('MaxDD', 'value'),
