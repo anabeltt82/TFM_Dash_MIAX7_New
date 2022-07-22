@@ -10,8 +10,7 @@ RUN pip install -r requirements.txt
 COPY src/ .
 #COPY saved_models/ .
 # Expose the API Port
-ENV aws_access_key_id=AKIAXMTJSWINJS2Q64PZ
-ENV aws_secret_access_key=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
+
 
 EXPOSE 8080
 # Run the server
