@@ -112,7 +112,7 @@ blob.download_to_filename(fichero)
 loaded_model = pd.read_pickle(fichero)
 
 
-fichero = 'my_h5_saved_model2.h5'
+fichero = 'my_autoencoder_1500.h5'
 blob = bucket.blob(fichero)
 blob.download_to_filename(fichero)
 loaded_model_autoencoder = tf.keras.models.load_model(fichero, custom_objects={'cMSE': cMSE})
@@ -563,9 +563,15 @@ def update_eleccion(values):
     cartera = pd.DataFrame(cartera)
     cartera = cartera.T
     
-    r_hat = loaded_model_autoencoder.predict(cartera)
-    r_hat = pd.DataFrame(r_hat)
-    r_hat.columns = cartera.columns
+    r_hat = loaded_model_autoencoder.predict(cartera) * (cartera == 0)
+    #r_hat = pd.DataFrame(r_hat)
+    #r_hat.columns = cartera.columns
+    r_hat2 = r_hat.T
+    r_hat2 = r_hat2.sort_values(by=[0], ascending = False)
+    r_hat2[0][10:] = 0.0
+    r_hat2[0][0:10] = 1.0
+    r_hat = r_hat2.T
+    
     
     #lo pasamos por nuestro modelo para que nos sugiera cartera
     fondos_new = []
