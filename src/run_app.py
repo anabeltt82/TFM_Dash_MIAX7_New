@@ -489,63 +489,64 @@ app.layout = html.Div(children=[
     Input('cartera_sugerida', 'value')
 )
 def calcula_cartera(n_clicks, posibles, sugerida):
-    if(posibles is not None): 
-        new_df1 = tablero[tablero['name'].isin(posibles)]
-        if (sugerida is not None):
-            new_df2 = tablero[tablero['name'].isin(sugerida)]
-            new_df = pd.concat([new_df1, new_df2], ignore_index=True)
-            dades = precios.loc[:,new_df.allfunds_id]
-            rango_fechas = pd.to_datetime(precios['Unnamed: 0'], format='%d/%m/%Y')
+    if n_clicks>0:
+        if(posibles is not None): 
+            new_df1 = tablero[tablero['name'].isin(posibles)]
+            if (sugerida is not None):
+                new_df2 = tablero[tablero['name'].isin(sugerida)]
+                new_df = pd.concat([new_df1, new_df2], ignore_index=True)
+                dades = precios.loc[:,new_df.allfunds_id]
+                rango_fechas = pd.to_datetime(precios['Unnamed: 0'], format='%d/%m/%Y')
 
-            allocations, cartera, retorno_optimo, vola_optima, sharpe_optimo = mk.markowitz(dades.columns, dades, 10000)
-            dades = precios.loc[:,cartera] #nos quedamos solo con los fondos que tienen allocation
-            dades['Date'] = rango_fechas
-            dades.set_index('Date')
-            stock_df=dades
-            stock_df.set_index('Date')
-            
+                allocations, cartera, retorno_optimo, vola_optima, sharpe_optimo = mk.markowitz(dades.columns, dades, 10000)
+                dades = precios.loc[:,cartera] #nos quedamos solo con los fondos que tienen allocation
+                dades['Date'] = rango_fechas
+                dades.set_index('Date')
+                stock_df=dades
+                stock_df.set_index('Date')
                 
-            nombres = IntToString(stock_df.columns)
-            stock_df.columns = nombres
-            stock_df = stock_df.set_index('Date')
-            
-            msci.set_index('Date')
-            # Indexamos las fechas
-            msci.set_index(rango_fechas, inplace = True) 
-            benchmark = msci['MSCI']
-            
-            
-            stock_states = stock_df.apply(movaverage_states, win=50)
-            
-            sma_returns = [state_return_serie(stock_df[tk], stock_states[tk]) for tk in stock_df.columns]
-            sma_returns_df = pd.concat(sma_returns, axis=1)
-            sma_performance = (sma_returns_df + 1).cumprod()
-            
-            for i in range(sma_performance.shape[1]):
-                columna = sma_performance.columns[i]
-                sma_performance[columna]=sma_performance[columna] / allocations[allocations['tck']==np.double(columna)]['alloc'].values
+                    
+                nombres = IntToString(stock_df.columns)
+                stock_df.columns = nombres
+                stock_df = stock_df.set_index('Date')
                 
-            figure1=px.line(sma_performance[sma_performance.columns], title='Fondos')
-            
-                                            
-            #plot de los fondos en mismo grafico en funcion de su alloc
-            
-            porfolio_performance = sma_performance.sum(axis=1)
-            figure2=px.line(porfolio_performance, title='Suma de rendimientos')
-            
-            #grafico de la suma del rendimiento
-            
-            relative_bm = benchmark/benchmark.iloc[0]
-            
-            estrategias = pd.DataFrame({
-                'SMA': porfolio_performance,
-                'MSCI': relative_bm
-            })
-            figure3=px.line(estrategias, title='Comparativo con MSCI')
-            
-            #plot comparativo benchmark
-            
-      
+                msci.set_index('Date')
+                # Indexamos las fechas
+                msci.set_index(rango_fechas, inplace = True) 
+                benchmark = msci['MSCI']
+                
+                
+                stock_states = stock_df.apply(movaverage_states, win=50)
+                
+                sma_returns = [state_return_serie(stock_df[tk], stock_states[tk]) for tk in stock_df.columns]
+                sma_returns_df = pd.concat(sma_returns, axis=1)
+                sma_performance = (sma_returns_df + 1).cumprod()
+                
+                for i in range(sma_performance.shape[1]):
+                    columna = sma_performance.columns[i]
+                    sma_performance[columna]=sma_performance[columna] / allocations[allocations['tck']==np.double(columna)]['alloc'].values
+                    
+                figure1=px.line(sma_performance[sma_performance.columns], title='Fondos')
+                
+                                                
+                #plot de los fondos en mismo grafico en funcion de su alloc
+                
+                porfolio_performance = sma_performance.sum(axis=1)
+                figure2=px.line(porfolio_performance, title='Suma de rendimientos')
+                
+                #grafico de la suma del rendimiento
+                
+                relative_bm = benchmark/benchmark.iloc[0]
+                
+                estrategias = pd.DataFrame({
+                    'SMA': porfolio_performance,
+                    'MSCI': relative_bm
+                })
+                figure3=px.line(estrategias, title='Comparativo con MSCI')
+                
+                #plot comparativo benchmark
+                
+        
     return figure1, figure2, figure3 #'Retorno óptimo:', retorno_optimo, ' Volatilidad óptima: ', vola_optima, ' Ratio Sharpe óptimo: ', sharpe_optimo, figure2
 
 
