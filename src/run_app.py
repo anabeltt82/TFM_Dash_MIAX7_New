@@ -666,7 +666,14 @@ def update_output(Omega, MaxDD, Sortino, IR, TE, Calmar, Beta, Vola,Perfil,Pais,
     if Vola != None:
         usuarios.iloc[0,3] = round(Vola)
     if Perfil != None:
-        usuarios.iloc[0,0] = Perfil
+        if Perfil == 'Conservador':
+            usuarios.iloc[0,0] = 1.0
+        elif Perfil == 'Moderado':
+            usuarios.iloc[0,0] = 2.0
+        elif Perfil == 'Agresivo':
+            usuarios.iloc[0,0] = 3.0
+        else:
+            usuarios.iloc[0,0] = Perfil
     if Pais != None:
         usuarios.iloc[0,1] = Pais
     if Categoria != None:
