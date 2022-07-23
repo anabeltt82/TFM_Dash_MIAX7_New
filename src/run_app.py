@@ -555,39 +555,40 @@ def calcula_cartera(n_clicks, posibles, sugerida):
     Input('fondos_posibles', 'value')
 )
 def update_eleccion(values):
-    new_df = tablero[tablero['name'].isin(values)]
-    #tendriamos ahroa que ver que fondos hay para marcar la columna a la que pertenecen  
-    cartera = tabla_completa.iloc[0,13:]
-    cartera[:] = 0
-    
-    for row in new_df.itertuples():
-        cartera[str(int(row.allfunds_id))] = 1
-
-    cartera = pd.DataFrame(cartera)
-    cartera = cartera.T
-    
-    r_hat = loaded_model_autoencoder.predict(cartera) * (cartera == 0)
-    #r_hat = pd.DataFrame(r_hat)
-    #r_hat.columns = cartera.columns
-    r_hat2 = r_hat.T
-    r_hat2 = r_hat2.sort_values(by=[0], ascending = False)
-    r_hat2[0][10:] = 0.0
-    r_hat2[0][0:10] = 1.0
-    r_hat = r_hat2.T
-    
-    
-    #lo pasamos por nuestro modelo para que nos sugiera cartera
-    fondos_new = []
-    for column in r_hat:
-        if(r_hat[column][0]==1.0):
-            fondos_new.append(column)
+    if(values is not None): 
+        new_df = tablero[tablero['name'].isin(values)]
+        #tendriamos ahroa que ver que fondos hay para marcar la columna a la que pertenecen  
+        cartera = tabla_completa.iloc[0,13:]
+        cartera[:] = 0
         
-    for fondo in fondos_new:       
-        reg = pd.DataFrame(tablero[tablero['allfunds_id'] == np.double(fondo)])
-        df = reg.loc[:,['allfunds_id','name']] 
-        if len(df) > 0:     
-            cartera_elegir.loc[len(cartera_elegir.index)] = int(df.iloc[0,0]), df.iloc[0,1]
-    
+        for row in new_df.itertuples():
+            cartera[str(int(row.allfunds_id))] = 1
+
+        cartera = pd.DataFrame(cartera)
+        cartera = cartera.T
+        
+        r_hat = loaded_model_autoencoder.predict(cartera) * (cartera == 0)
+        #r_hat = pd.DataFrame(r_hat)
+        #r_hat.columns = cartera.columns
+        r_hat2 = r_hat.T
+        r_hat2 = r_hat2.sort_values(by=[0], ascending = False)
+        r_hat2[0][10:] = 0.0
+        r_hat2[0][0:10] = 1.0
+        r_hat = r_hat2.T
+        
+        
+        #lo pasamos por nuestro modelo para que nos sugiera cartera
+        fondos_new = []
+        for column in r_hat:
+            if(r_hat[column][0]==1.0):
+                fondos_new.append(column)
+            
+        for fondo in fondos_new:       
+            reg = pd.DataFrame(tablero[tablero['allfunds_id'] == np.double(fondo)])
+            df = reg.loc[:,['allfunds_id','name']] 
+            if len(df) > 0:     
+                cartera_elegir.loc[len(cartera_elegir.index)] = int(df.iloc[0,0]), df.iloc[0,1]
+        
     return cartera_elegir.nombre.unique()
 
 
