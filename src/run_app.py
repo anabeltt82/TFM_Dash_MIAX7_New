@@ -438,7 +438,6 @@ app.layout = html.Div(children=[
             ),
         ]),
     ], style={'columnCount': 2}),
-    html.Br(),
     html.Div(id='mensajes'),
     html.Br(),
     html.Button('Calcula fondos posibles', id='enviar', n_clicks=0),
@@ -483,7 +482,6 @@ app.layout = html.Div(children=[
     Output('gr_comparativo', 'figure'),
     Output('gr_rendimiento', 'figure'),
     Output('gr_fondos', 'figure'),
-    #Output('result', 'children'),
     Input('cartera', 'n_clicks'),
     Input('fondos_posibles', 'value'),
     Input('cartera_sugerida', 'value')
