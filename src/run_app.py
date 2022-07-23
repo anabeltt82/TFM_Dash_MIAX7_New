@@ -487,6 +487,10 @@ app.layout = html.Div(children=[
     Input('cartera_sugerida', 'value')
 )
 def calcula_cartera(n_clicks, posibles, sugerida):
+    porfolio_performance = pd.DataFrame()
+    figure1=px.line(porfolio_performance, title='Fondos')
+    figure2=px.line(porfolio_performance, title='Suma de rendimientos')
+    figure3=px.line(porfolio_performance, title='Comparativo con MSCI')
     if n_clicks>0:
         if(posibles is not None): 
             new_df1 = tablero[tablero['name'].isin(posibles)]
@@ -606,32 +610,33 @@ def update_eleccion(values):
     State('Categoria', 'value')    
 )
 def update_output_button(n_clicks, Omega, MaxDD, Sortino, IR, TE, Calmar, Beta, Vola,Perfil,Pais,Categoria):
-    for column in usuarios:
-        usuarios[column]=usuarios[column].astype(float)
+    if n_clicks > 0 :
+        for column in usuarios:
+            usuarios[column]=usuarios[column].astype(float)
 
-    distancia, indice = loaded_model.kneighbors(usuarios)
+        distancia, indice = loaded_model.kneighbors(usuarios)
 
-    df = pd.DataFrame(columns=tabla_completa.columns)
-    for i in range(1, 4):            
-        df.loc[len(df.index)]=((tabla_completa.iloc[indice[0][i], :]))
-    df = df.iloc[:,13:] #nos quedamos solo con los fondos descartamos la informacion del usuario
-    fondos = []
+        df = pd.DataFrame(columns=tabla_completa.columns)
+        for i in range(1, 4):            
+            df.loc[len(df.index)]=((tabla_completa.iloc[indice[0][i], :]))
+        df = df.iloc[:,13:] #nos quedamos solo con los fondos descartamos la informacion del usuario
+        fondos = []
 
-    for column in df:
-        if df[column][0]==1:
-            fondos.append(column)
-        if df[column][1]==1:
-            fondos.append(column)
-        if df[column][2]==1:
-            fondos.append(column)
+        for column in df:
+            if df[column][0]==1:
+                fondos.append(column)
+            if df[column][1]==1:
+                fondos.append(column)
+            if df[column][2]==1:
+                fondos.append(column)
+            
         
-    
-    
-    for fondo in fondos:       
-        reg = pd.DataFrame(tablero[tablero['allfunds_id'] == np.double(fondo)])
-        df = reg.loc[:,['allfunds_id','name']]      
-        fondos_elegir.loc[len(fondos_elegir.index)] = int(df.iloc[0,0]), df.iloc[0,1]
-    
+        
+        for fondo in fondos:       
+            reg = pd.DataFrame(tablero[tablero['allfunds_id'] == np.double(fondo)])
+            df = reg.loc[:,['allfunds_id','name']]      
+            fondos_elegir.loc[len(fondos_elegir.index)] = int(df.iloc[0,0]), df.iloc[0,1]
+        
     return fondos_elegir.nombre.unique()
 
 
@@ -680,7 +685,7 @@ def update_output(Omega, MaxDD, Sortino, IR, TE, Calmar, Beta, Vola,Perfil,Pais,
         usuarios.iloc[0,1] = Pais
     if Categoria != None:
         usuarios.iloc[0,2] = Categoria
-    return 'Perfil:', Perfil, ' Pais: ', Pais, ' Categoria: ', Categoria, ' Vola: ', Vola
+    return print(usuarios)
 
 
 
