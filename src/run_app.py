@@ -489,9 +489,9 @@ app.layout = html.Div(children=[
     Input('cartera_sugerida', 'value')
 )
 def calcula_cartera(n_clicks, posibles, sugerida):
-    if len(posibles)>0:
+    if(posibles is not None): 
         new_df1 = tablero[tablero['name'].isin(posibles)]
-        if len(sugerida)>0:
+        if (sugerida is not None):
             new_df2 = tablero[tablero['name'].isin(sugerida)]
             new_df = pd.concat([new_df1, new_df2], ignore_index=True)
             dades = precios.loc[:,new_df.allfunds_id]
